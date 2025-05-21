@@ -29,6 +29,56 @@ class CartItems extends HTMLElement {
 
   connectedCallback() {
     this.cartUpdateUnsubscriber = subscribe(PUB_SUB_EVENTS.cartUpdate, (event) => {
+      // EXO 1-3 : Ajouter un produit gratuit à partir de 100€ d'achat
+      const freeProductId = 15071517212997;
+
+      var url = '/cart.js';
+      fetch(url, { method: 'GET' })
+        .then((res) => res.json())
+        .then((response) => {
+          // console.log('Success:', JSON.stringify(response));
+          const cart = response;
+          console.log(response);
+
+          // 1. On regarde si le montant du panier est >= à 100€
+          if (cart.total_price >= 10000) {
+            // 2. On regare si le produit cadeau est présent ou non
+            var productFound = false;
+            for (let item of cart.items) {
+              if (item.id == freeProductId) {
+                productFound = true;
+              }
+            }
+
+            // 3. Si il n'est pas présent, l'ajouter au panier
+            if (!productFound) {
+              let formData = {
+                items: [
+                  {
+                    id: freeProductId,
+                    quantity: 1,
+                  },
+                ],
+              };
+
+              fetch(routes.cart_change_url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Accept: 'application/json',
+                },
+                body: JSON.stringify(formData),
+              })
+                .then((res) => res.json())
+                .then((response) => {
+                  console.log('Success:', JSON.stringify(response));
+                })
+                .catch((error) => console.error('Error:', error));
+            }
+          }
+        })
+        .catch((error) => console.error('Error:', error));
+
       if (event.source === 'cart-items') {
         return;
       }
@@ -182,7 +232,8 @@ class CartItems extends HTMLElement {
 
           this.getSectionsToRender().forEach((section) => {
             const elementToReplace =
-              document.getElementById(section.id).querySelector(section.selector) || document.getElementById(section.id);
+              document.getElementById(section.id).querySelector(section.selector) ||
+              document.getElementById(section.id);
             elementToReplace.innerHTML = this.getSectionInnerHTML(
               parsedState.sections[section.section],
               section.selector
@@ -284,8 +335,9 @@ if (!customElements.get('cart-note')) {
           'input',
           debounce((event) => {
             const body = JSON.stringify({ note: event.target.value });
-            fetch(`${routes.cart_update_url}`, { ...fetchConfig(), ...{ body } })
-              .then(() => CartPerformance.measureFromEvent('note-update:user-action', event));
+            fetch(`${routes.cart_update_url}`, { ...fetchConfig(), ...{ body } }).then(() =>
+              CartPerformance.measureFromEvent('note-update:user-action', event)
+            );
           }, ON_CHANGE_DEBOUNCE_TIMER)
         );
       }
