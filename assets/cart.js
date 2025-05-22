@@ -30,7 +30,7 @@ class CartItems extends HTMLElement {
   connectedCallback() {
     this.cartUpdateUnsubscriber = subscribe(PUB_SUB_EVENTS.cartUpdate, (event) => {
       // EXO 1-3 : Ajouter un produit gratuit à partir de 100€ d'achat
-      const freeProductId = 15071517212997;
+      const freeProductId = 15071599132997;
 
       var url = '/cart.js';
       fetch(url, { method: 'GET' })
@@ -59,7 +59,8 @@ class CartItems extends HTMLElement {
                 ],
               };
 
-              fetch(routes.cart_change_url, {
+              // TODO : fix error "Erreur panier"
+              fetch(routes.cart_add_url, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -69,7 +70,7 @@ class CartItems extends HTMLElement {
               })
                 .then((res) => res.json())
                 .then((response) => {
-                  console.log('Success:', JSON.stringify(response));
+                  console.log(response);
                 })
                 .catch((error) => console.error('Error:', error));
             }
