@@ -27,57 +27,119 @@ class CartItems extends HTMLElement {
 
   cartUpdateUnsubscriber = undefined;
 
+  // EXO 1-3 : Ajouter un produit gratuit à partir de 100€ d'achat
+
+  updateCartDrawer() {
+    fetch(`${routes.cart_url}?section_id=cart-drawer`)
+      .then((response) => response.text())
+      .then((responseText) => {
+        const html = new DOMParser().parseFromString(responseText, 'text/html');
+        const selectors = ['cart-drawer-items', '.cart-drawer__footer'];
+        for (const selector of selectors) {
+          const targetElement = document.querySelector(selector);
+          const sourceElement = html.querySelector(selector);
+          if (targetElement && sourceElement) {
+            targetElement.replaceWith(sourceElement);
+          }
+        }
+      })
+      .catch((e) => {
+        console.error(e);
+      });
+  }
+
+  addFreeProduct() {
+    // Datas à envoyer
+    let formData = {
+      items: [
+        {
+          id: 54770955845957,
+          quantity: 1,
+        },
+      ],
+    };
+
+    // 1. On regare si le produit cadeau est présent ou non
+    var productFound = false;
+    var productLine = 0;
+    var url = '/cart.js';
+    fetch(url, { method: 'GET' })
+      .then((res) => res.json())
+      .then((response) => {
+        const cart = response;
+        var freeProductItem = null;
+        for (let index = 0; index < cart.items.length; index++) {
+          if (cart.items[index].variant_id == 54770955845957) {
+            productFound = true;
+            productLine = index;
+            freeProductItem = cart.items[index];
+          }
+        }
+
+        // 2. Si le produit existe et que le panier est >= à 100€, on mets à jour le produit
+        if (productFound && cart.total_price >= 10000) {
+          fetch(window.Shopify.routes.root + 'cart/update.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              updates: {
+                54770955845957: 1,
+              },
+            }),
+          })
+            .then((res) => res.json())
+            .then((resJson) => {
+              this.updateCartDrawer();
+            })
+            .catch((error) => console.error('Error:', error));
+        }
+        // 2. Si le produit existe et que le panier est < à 100€, on retire le produit
+        if (productFound && cart.total_price < 10000) {
+          fetch(window.Shopify.routes.root + 'cart/update.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              updates: {
+                54770955845957: 0,
+              },
+            }),
+          })
+            .then((res) => res.json())
+            .then((resJson) => {
+              this.updateCartDrawer();
+            })
+            .catch((error) => console.error('Error:', error));
+        }
+        // 2. Si le produit n'existe pas et que le panier est >= à 100€, on ajoute le produit
+        if (!productFound && cart.total_price >= 10000) {
+          console.log('on ajoute le produit cadeau du panier');
+          fetch(window.Shopify.routes.root + 'cart/update.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              updates: {
+                54770955845957: 1,
+              },
+            }),
+          })
+            .then((res) => res.json())
+            .then((resJson) => {
+              this.updateCartDrawer();
+            })
+            .catch((error) => console.error('Error:', error));
+        }
+      })
+      .catch((error) => console.error('Error:', error));
+  }
+
   connectedCallback() {
     this.cartUpdateUnsubscriber = subscribe(PUB_SUB_EVENTS.cartUpdate, (event) => {
-      // EXO 1-3 : Ajouter un produit gratuit à partir de 100€ d'achat
-      const freeProductId = 15071599132997;
-
-      var url = '/cart.js';
-      fetch(url, { method: 'GET' })
-        .then((res) => res.json())
-        .then((response) => {
-          const cart = response;
-
-          // 1. On regarde si le montant du panier est >= à 100€
-          if (cart.total_price >= 10000) {
-            // 2. On regare si le produit cadeau est présent ou non
-            var productFound = false;
-            for (let item of cart.items) {
-              if (item.id == freeProductId) {
-                productFound = true;
-              }
-            }
-
-            // 3. Si il n'est pas présent, l'ajouter au panier
-            if (!productFound) {
-              let formData = {
-                items: [
-                  {
-                    id: freeProductId,
-                    quantity: 1,
-                  },
-                ],
-              };
-
-              // TODO : fix error "Erreur panier"
-              fetch(routes.cart_add_url, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Accept: 'application/json',
-                },
-                body: JSON.stringify(formData),
-              })
-                .then((res) => res.json())
-                .then((response) => {
-                  console.log(response);
-                })
-                .catch((error) => console.error('Error:', error));
-            }
-          }
-        })
-        .catch((error) => console.error('Error:', error));
-
       if (event.source === 'cart-items') {
         return;
       }
@@ -138,11 +200,13 @@ class CartItems extends HTMLElement {
 
   onCartUpdate() {
     if (this.tagName === 'CART-DRAWER-ITEMS') {
-      return fetch(`${routes.cart_url}?section_id=cart-drawer`)
+      this.addFreeProduct();
+      var fetchCartDrawer = fetch(`${routes.cart_url}?section_id=cart-drawer`)
         .then((response) => response.text())
         .then((responseText) => {
           const html = new DOMParser().parseFromString(responseText, 'text/html');
           const selectors = ['cart-drawer-items', '.cart-drawer__footer'];
+
           for (const selector of selectors) {
             const targetElement = document.querySelector(selector);
             const sourceElement = html.querySelector(selector);
@@ -154,8 +218,9 @@ class CartItems extends HTMLElement {
         .catch((e) => {
           console.error(e);
         });
+      return fetchCartDrawer;
     } else {
-      return fetch(`${routes.cart_url}?section_id=main-cart-items`)
+      var fetchCartItems = fetch(`${routes.cart_url}?section_id=main-cart-items`)
         .then((response) => response.text())
         .then((responseText) => {
           const html = new DOMParser().parseFromString(responseText, 'text/html');
@@ -165,6 +230,7 @@ class CartItems extends HTMLElement {
         .catch((e) => {
           console.error(e);
         });
+      return fetchCartItems;
     }
   }
 
